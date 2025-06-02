@@ -1,49 +1,45 @@
-from lib.db.connection import get_connection
-# Remove circular import top-level imports
-# from lib.models.author import Author
-# from lib.models.magazine import Magazine
+from search_db_conn import get_connection
 
 class Article:
-    def __init__(self, id, title, author_id, magazine_id):
+    def __init__(self, id=None, title="", author_id=None, magazine_id=None):
         self.id = id
         self.title = title
         self.author_id = author_id
         self.magazine_id = magazine_id
 
-    @classmethod
-    def create(cls, title, author_id, magazine_id):
+    def save(self):
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO articles (title, author_id, magazine_id) VALUES (?, ?, ?)", (title, author_id, magazine_id))
+        if self.id:
+            cursor.execute("UPDATE articles SET title=?, author_id=?, magazine_id=? WHERE id=?",
+                           (self.title, self.author_id, self.magazine_id, self.id))
+        else:
+            cursor.execute("INSERT INTO articles (title, author_id, magazine_id) VALUES (?, ?, ?)",
+                           (self.title, self.author_id, self.magazine_id))
+            self.id = cursor.lastrowid
         conn.commit()
-        return cls(cursor.lastrowid, title, author_id, magazine_id)
-
-    @classmethod
-    def find_by_id(cls, id):
-        conn = get_connection()
-        cursor = conn.cursor()
-        row = cursor.execute("SELECT * FROM articles WHERE id = ?", (id,)).fetchone()
-        if row:
-            return cls.from_row(row)
-        return None
+        conn.close()
 
     @classmethod
     def find_by_title(cls, title):
         conn = get_connection()
         cursor = conn.cursor()
-        row = cursor.execute("SELECT * FROM articles WHERE title = ?", (title,)).fetchone()
-        if row:
-            return cls.from_row(row)
-        return None
-
-    def author(self):
-        from lib.models.author import Author  # import here to avoid circular import
-        return Author.find_by_id(self.author_id)
-
-    def magazine(self):
-        from lib.models.magazine import Magazine  # import here
-        return Magazine.find_by_id(self.magazine_id)
+        row = cursor.execute("SELECT * FROM articles WHERE title=?", (title,)).fetchone()
+        conn.close()
+        return cls(id=row[0], title=row[1], author_id=row[2], magazine_id=row[3]) if row else None
 
     @classmethod
-    def from_row(cls, row):
-        return cls(row["id"], row["title"], row["author_id"], row["magazine_id"])
+    def find_by_author_id(cls, author_id):
+        conn = get_connection()
+        cursor = conn.cursor()
+        rows = cursor.execute("SELECT * FROM articles WHERE author_id=?", (author_id,)).fetchall()
+        conn.close()
+        return [cls(id=row[0], title=row[1], author_id=row[2], magazine_id=row[3]) for row in rows]
+
+    @classmethod
+    def find_by_magazine_id(cls, magazine_id):
+        conn = get_connection()
+        cursor = conn.cursor()
+        rows = cursor.execute("SELECT * FROM articles WHERE magazine_id=?", (magazine_id,)).fetchall()
+        conn.close()
+        return [cls(id=row[0], title=row[1], author_id=row[2], magazine_id=row[3]) for row in rows]
